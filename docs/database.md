@@ -7,6 +7,8 @@ PostgreSQL via Supabase. Row Level Security (RLS) habilitado em todas as tabelas
 Execute os arquivos na ordem:
 1. `supabase/schema.sql` — tabelas base
 2. `supabase/migration_v2_saas.sql` — extensão multi-tenant
+3. `supabase/migration_v3_super_admin.sql` — bloqueio de workspaces
+4. `supabase/migration_v4_admin_contact.sql` — contatos do admin + nome do membro
 
 ---
 
@@ -17,7 +19,7 @@ auth.users (Supabase)
     │
     ├── workspace_members ──── workspaces
     │         │                    │
-    │         └── (role)           ├── subscriptions ── plans
+    │         └── (role, name)     ├── subscriptions ── plans
     │                              │
     ├── customers ─────────────────┤
     │                              │
@@ -42,8 +44,17 @@ Representa uma empresa (tenant).
 | `id` | uuid PK | Identificador único |
 | `name` | text | Nome da empresa |
 | `slug` | text UNIQUE | Identificador URL-friendly |
+| `is_blocked` | boolean | Se a empresa está bloqueada pelo super admin |
+| `blocked_at` | timestamptz | Quando foi bloqueada |
+| `blocked_reason` | text | Motivo do bloqueio |
+| `admin_email` | text | Email de contato do administrador |
+| `admin_whatsapp` | text | WhatsApp de contato do administrador |
 | `created_at` | timestamptz | Data de criação |
 | `updated_at` | timestamptz | Última atualização |
+
+**Campos adicionados por versão:**
+- v3: `is_blocked`, `blocked_at`, `blocked_reason`
+- v4: `admin_email`, `admin_whatsapp`
 
 ---
 
@@ -56,10 +67,14 @@ Vínculo entre usuários e workspaces com role.
 | `workspace_id` | uuid FK → workspaces | — |
 | `user_id` | uuid FK → auth.users | — |
 | `role` | text | `admin` ou `technician` |
+| `name` | text | Nome de exibição do membro |
 | `invited_by` | uuid FK → auth.users | Quem convidou |
 | `created_at` | timestamptz | — |
 
 **Constraint:** `UNIQUE(workspace_id, user_id)`
+
+**Campos adicionados por versão:**
+- v4: `name`
 
 ---
 
@@ -185,6 +200,16 @@ Todas as tabelas têm RLS. Padrão:
 
 A tabela `audit_logs` é somente insert/select — nunca update/delete.
 
+As APIs do super admin (`/api/super-admin/`) usam o **service role key** (bypass total de RLS) exclusivamente server-side.
+
+---
+
+## Funções RPC
+
+### `create_workspace(p_name, p_slug, p_admin_name, p_admin_email, p_admin_whatsapp)`
+Cria workspace + membro admin + assinatura no plano Gratuito em uma única transação.
+Usa `SECURITY DEFINER` para contornar RLS na criação inicial.
+
 ---
 
 ## Índices
@@ -204,4 +229,8 @@ idx_workspace_members_user_id
 -- Audit
 idx_audit_logs_workspace_id
 idx_audit_logs_created_at (DESC)
+
+-- Super admin (v3)
+idx_workspaces_slug
+idx_workspaces_is_blocked
 ```

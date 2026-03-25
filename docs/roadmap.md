@@ -1,17 +1,41 @@
 # Roadmap — TiBum SaaS
 
-## Status Atual: MVP v2 ✅
+## Status Atual: MVP v4 ✅
 
-Multi-tenant completo, RBAC, billing estrutural, audit logs.
+Multi-tenant completo, RBAC, billing estrutural, audit logs, super admin, convite por email.
+
+---
+
+## ✅ Concluído
+
+### v2 — SaaS Multi-tenant
+- [x] Arquitetura multi-tenant com workspaces e RLS
+- [x] RBAC: roles admin e technician
+- [x] Planos de assinatura (Gratuito / Starter / Pro)
+- [x] Trial de 14 dias automático
+- [x] Audit logs de todas as ações
+- [x] Onboarding de criação de empresa
+
+### v3 — Super Admin
+- [x] Painel exclusivo do criador em `/super-admin`
+- [x] Bloqueio/desbloqueio de empresas com motivo
+- [x] Exclusão de empresa (cascade + libera slug)
+- [x] Troca manual de plano pelo super admin
+- [x] Página `/bloqueado` com mensagem de motivo
+
+### v4 — Contatos e Convites
+- [x] Dados de contato do admin (email + WhatsApp) no onboarding
+- [x] Popup de detalhes da empresa no painel super admin
+- [x] Convite de membros por nome + email (sem UUID do Supabase)
+- [x] Email automático de acesso enviado ao técnico convidado
 
 ---
 
 ## v2.1 — Estabilização (próximo)
 
-- [ ] **Convites por email** — enviar link de convite para técnicos (hoje é por UUID manual)
 - [ ] **Paginação** — listas com muitos registros (clientes, serviços, logs)
 - [ ] **Busca global** — encontrar qualquer cliente ou serviço rapidamente
-- [ ] **Filtro de data** — agenda e serviços filtrável por período
+- [ ] **Filtro de data** — agenda e serviços filtráveis por período
 - [ ] **Toasts de feedback** — substituir `alert()` por notificações visuais
 - [ ] **Loading skeletons** — UX mais polida durante carregamento
 
