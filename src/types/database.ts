@@ -77,6 +77,9 @@ export interface Workspace {
   is_blocked: boolean
   blocked_at: string | null
   blocked_reason: string | null
+  // Dados de contato do administrador (v4)
+  admin_email: string | null
+  admin_whatsapp: string | null
   created_at: string
   updated_at: string
 }
@@ -87,6 +90,8 @@ export interface WorkspaceMember {
   user_id: string
   role: WorkspaceRole
   invited_by: string | null
+  // Nome de exibição do membro (preenchido no onboarding para o admin)
+  name: string | null
   created_at: string
   workspace?: Workspace
   // Email vem de auth.users (via join manual)

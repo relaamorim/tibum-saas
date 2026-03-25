@@ -47,11 +47,17 @@ export async function getUserWorkspace(supabase: SupabaseClient): Promise<{
 export async function createWorkspace(
   supabase: SupabaseClient,
   name: string,
-  slug: string
+  slug: string,
+  adminName?: string,
+  adminEmail?: string,
+  adminWhatsapp?: string
 ): Promise<Workspace> {
   const { data, error } = await supabase.rpc('create_workspace', {
     p_name: name,
     p_slug: slug,
+    p_admin_name: adminName ?? null,
+    p_admin_email: adminEmail ?? null,
+    p_admin_whatsapp: adminWhatsapp ?? null,
   })
   if (error) throw error
   return data as Workspace

@@ -19,12 +19,25 @@ function generateSlug(name: string): string {
     .trim()
 }
 
+// Formata o número de WhatsApp (mantém apenas dígitos)
+function formatWhatsapp(value: string): string {
+  return value.replace(/\D/g, '')
+}
+
 export default function OnboardingPage() {
   const router = useRouter()
   const supabase = createClient()
+
+  // Dados da empresa
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugEdited, setSlugEdited] = useState(false)
+
+  // Dados do administrador
+  const [adminName, setAdminName] = useState('')
+  const [adminEmail, setAdminEmail] = useState('')
+  const [adminWhatsapp, setAdminWhatsapp] = useState('')
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -42,12 +55,12 @@ export default function OnboardingPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name || !slug) return
+    if (!name || !slug || !adminName || !adminEmail) return
     setLoading(true)
     setError('')
 
     try {
-      await createWorkspace(supabase, name, slug)
+      await createWorkspace(supabase, name, slug, adminName, adminEmail, adminWhatsapp || undefined)
       router.push('/dashboard')
       router.refresh()
     } catch (err: any) {
@@ -73,30 +86,75 @@ export default function OnboardingPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Criar sua empresa</h2>
-          <p className="text-sm text-gray-500 mb-6">
-            Você será o administrador e poderá convidar técnicos depois.
-          </p>
+          <form onSubmit={handleSubmit} className="space-y-6">
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              label="Nome da Empresa *"
-              placeholder="Ex: Piscinas São Paulo"
-              value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              required
-            />
+            {/* Seção: Dados da Empresa */}
             <div>
-              <Input
-                label="Identificador único *"
-                placeholder="piscinas-sao-paulo"
-                value={slug}
-                onChange={(e) => handleSlugChange(e.target.value)}
-                required
-              />
-              <p className="mt-1 text-xs text-gray-400">
-                Apenas letras minúsculas, números e hifens. Não pode ser alterado depois.
+              <h2 className="text-xl font-semibold text-gray-900 mb-1">Dados da Empresa</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Informações da empresa que será criada no sistema.
               </p>
+              <div className="space-y-4">
+                <Input
+                  label="Nome da Empresa *"
+                  placeholder="Ex: Piscinas São Paulo"
+                  value={name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  required
+                />
+                <div>
+                  <Input
+                    label="Identificador único *"
+                    placeholder="piscinas-sao-paulo"
+                    value={slug}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    required
+                  />
+                  <p className="mt-1 text-xs text-gray-400">
+                    Apenas letras minúsculas, números e hifens. Não pode ser alterado depois.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Divisor */}
+            <div className="border-t border-gray-100" />
+
+            {/* Seção: Dados do Administrador */}
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-1">Dados do Administrador</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Seu nome será exibido na área de membros como nome de usuário.
+              </p>
+              <div className="space-y-4">
+                <Input
+                  label="Nome do Administrador *"
+                  placeholder="Ex: João Silva"
+                  value={adminName}
+                  onChange={(e) => setAdminName(e.target.value)}
+                  required
+                />
+                <Input
+                  label="E-mail do Administrador *"
+                  type="email"
+                  placeholder="Ex: joao@empresa.com"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  required
+                />
+                <div>
+                  <Input
+                    label="WhatsApp (opcional)"
+                    type="tel"
+                    placeholder="Ex: 11999999999"
+                    value={adminWhatsapp}
+                    onChange={(e) => setAdminWhatsapp(formatWhatsapp(e.target.value))}
+                  />
+                  <p className="mt-1 text-xs text-gray-400">
+                    Somente números, com DDD. Ex: 11999999999
+                  </p>
+                </div>
+              </div>
             </div>
 
             {error && (
@@ -109,7 +167,11 @@ export default function OnboardingPage() {
               <p className="text-xs text-cyan-600 mt-1">Sem cartão de crédito necessário.</p>
             </div>
 
-            <Button type="submit" disabled={loading || !name || !slug} className="w-full">
+            <Button
+              type="submit"
+              disabled={loading || !name || !slug || !adminName || !adminEmail}
+              className="w-full"
+            >
               {loading ? 'Criando empresa...' : 'Criar Empresa e Começar'}
             </Button>
           </form>
