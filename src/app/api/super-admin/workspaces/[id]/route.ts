@@ -33,15 +33,66 @@ export async function PATCH(
   if (error) return NextResponse.json({ error }, { status })
 
   const body = await request.json()
-  const { action, reason } = body as { action: 'block' | 'unblock'; reason?: string }
+  const { action, reason, plan_id } = body as {
+    action: 'block' | 'unblock' | 'set_plan'
+    reason?: string
+    plan_id?: string
+  }
 
-  if (action !== 'block' && action !== 'unblock') {
-    return NextResponse.json({ error: 'Ação inválida. Use "block" ou "unblock"' }, { status: 400 })
+  if (!['block', 'unblock', 'set_plan'].includes(action)) {
+    return NextResponse.json({ error: 'Ação inválida' }, { status: 400 })
   }
 
   const admin = createAdminClient()
 
-  // Prepara os dados de atualização conforme a ação
+  // ── Ação: alterar plano manualmente ────────────────────────
+  if (action === 'set_plan') {
+    if (!plan_id) {
+      return NextResponse.json({ error: 'plan_id é obrigatório' }, { status: 400 })
+    }
+
+    // Verifica se o plano existe
+    const { data: plan, error: planError } = await admin
+      .from('plans')
+      .select('id, name')
+      .eq('id', plan_id)
+      .single()
+
+    if (planError || !plan) {
+      return NextResponse.json({ error: 'Plano não encontrado' }, { status: 404 })
+    }
+
+    // Atualiza a assinatura existente ou cria uma nova se não existir
+    const { data: existingSub } = await admin
+      .from('subscriptions')
+      .select('id')
+      .eq('workspace_id', id)
+      .single()
+
+    if (existingSub) {
+      const { error: updateError } = await admin
+        .from('subscriptions')
+        .update({ plan_id, status: 'active' })
+        .eq('workspace_id', id)
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 })
+      }
+    } else {
+      // Workspace sem assinatura — cria uma nova
+      const { error: insertError } = await admin
+        .from('subscriptions')
+        .insert({ workspace_id: id, plan_id, status: 'active' })
+
+      if (insertError) {
+        return NextResponse.json({ error: insertError.message }, { status: 500 })
+      }
+    }
+
+    return NextResponse.json({ success: true, plan_name: plan.name })
+  }
+
+  // ── Ação: bloquear / desbloquear ───────────────────────────
   const updateData =
     action === 'block'
       ? { is_blocked: true, blocked_at: new Date().toISOString(), blocked_reason: reason ?? null }

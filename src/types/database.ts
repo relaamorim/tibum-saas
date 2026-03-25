@@ -158,7 +158,9 @@ export interface WorkspaceAdminView {
   blocked_reason: string | null
   created_at: string
   // Dados de assinatura
+  subscription_id: string | null
   subscription_status: string | null
+  plan_id: string | null
   plan_name: string | null
   plan_price: number | null
   // Contadores
