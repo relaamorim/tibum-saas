@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   getWorkspaceMembers,
-  inviteMember,
   updateMemberRole,
   removeMember,
   checkMemberLimit,
@@ -24,10 +23,15 @@ export default function MembrosPage() {
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
-  const [inviteUserId, setInviteUserId] = useState('')
+
+  // Campos do formulário de convite
+  const [inviteName, setInviteName] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'admin' | 'technician'>('technician')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+
   const [limitInfo, setLimitInfo] = useState<{ allowed: boolean; current: number; max: number | null } | null>(null)
 
   useEffect(() => {
@@ -50,30 +54,55 @@ export default function MembrosPage() {
     }
   }
 
+  function openModal() {
+    setInviteName('')
+    setInviteEmail('')
+    setInviteRole('technician')
+    setError('')
+    setSuccessMsg('')
+    setModalOpen(true)
+  }
+
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
     if (!workspace) return
     setSaving(true)
     setError('')
+    setSuccessMsg('')
 
     try {
-      const newMember = await inviteMember(supabase, workspace.id, inviteUserId, inviteRole)
+      // Chama a API de convite — cria a conta Supabase e envia email ao técnico
+      const res = await fetch('/api/workspace/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inviteName,
+          email: inviteEmail,
+          role: inviteRole,
+          workspace_id: workspace.id,
+        }),
+      })
+
+      const json = await res.json()
+
+      if (!res.ok) {
+        setError(json.error || 'Erro ao convidar membro.')
+        return
+      }
+
+      // Registra na auditoria
       await logAudit(supabase, {
         workspaceId: workspace.id,
         action: 'invite',
         resourceType: 'member',
-        resourceId: newMember.id,
-        newData: { user_id: inviteUserId, role: inviteRole },
+        resourceId: json.member?.id,
+        newData: { name: inviteName, email: inviteEmail, role: inviteRole },
       })
-      setModalOpen(false)
-      setInviteUserId('')
+
+      setSuccessMsg(`Convite enviado para ${inviteEmail}! ${inviteName} receberá um email com o link de acesso.`)
       loadData()
-    } catch (err: any) {
-      if (err?.message?.includes('unique')) {
-        setError('Este usuário já é membro do workspace.')
-      } else {
-        setError('Erro ao adicionar membro. Verifique o ID do usuário.')
-      }
+    } catch {
+      setError('Erro inesperado. Tente novamente.')
     } finally {
       setSaving(false)
     }
@@ -120,7 +149,7 @@ export default function MembrosPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Membros da Equipe</h1>
         <Button
-          onClick={() => setModalOpen(true)}
+          onClick={openModal}
           disabled={limitInfo !== null && !limitInfo.allowed}
         >
           + Adicionar Membro
@@ -148,7 +177,7 @@ export default function MembrosPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  <th className="text-left px-6 py-3 font-medium">Usuário (ID)</th>
+                  <th className="text-left px-6 py-3 font-medium">Nome</th>
                   <th className="text-left px-6 py-3 font-medium">Função</th>
                   <th className="text-left px-6 py-3 font-medium hidden sm:table-cell">Desde</th>
                   <th className="text-right px-6 py-3 font-medium">Ações</th>
@@ -161,7 +190,7 @@ export default function MembrosPage() {
                       {m.name ? (
                         <span className="text-sm font-medium text-gray-800">{m.name}</span>
                       ) : (
-                        <span className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                        <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
                           {m.user_id.slice(0, 16)}…
                         </span>
                       )}
@@ -194,38 +223,68 @@ export default function MembrosPage() {
         </div>
       )}
 
-      {/* Modal adicionar membro */}
+      {/* Modal de convite */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Adicionar Membro">
-        <form onSubmit={handleInvite} className="space-y-4">
-          <Input
-            label="ID do Usuário Supabase *"
-            value={inviteUserId}
-            onChange={(e) => setInviteUserId(e.target.value)}
-            placeholder="uuid do usuário"
-            required
-          />
-          <p className="text-xs text-gray-400 -mt-2">
-            O usuário precisa ter criado uma conta no TiBum. Use o ID do painel do Supabase.
-          </p>
-          <Select
-            label="Função"
-            options={[
-              { value: 'technician', label: 'Técnico' },
-              { value: 'admin', label: 'Admin' },
-            ]}
-            value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value as 'admin' | 'technician')}
-          />
-          {error && <p className="text-sm text-red-500 bg-red-50 p-3 rounded-lg">{error}</p>}
-          <div className="flex gap-3 pt-2">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Adicionando...' : 'Adicionar'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
+        {/* Se o convite foi enviado com sucesso, mostra mensagem e botão de fechar */}
+        {successMsg ? (
+          <div className="space-y-4">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+              <p className="text-sm text-emerald-700 font-medium">Convite enviado!</p>
+              <p className="text-sm text-emerald-600 mt-1">{successMsg}</p>
+            </div>
+            <p className="text-xs text-gray-500">
+              O membro receberá um email com um link para acessar o sistema.
+              Ele precisará criar uma senha no primeiro acesso.
+            </p>
+            <div className="flex gap-3 pt-1">
+              <Button onClick={() => { setSuccessMsg(''); setModalOpen(false) }}>
+                Fechar
+              </Button>
+              <Button variant="secondary" onClick={() => setSuccessMsg('')}>
+                Convidar outro
+              </Button>
+            </div>
           </div>
-        </form>
+        ) : (
+          <form onSubmit={handleInvite} className="space-y-4">
+            <Input
+              label="Nome completo *"
+              value={inviteName}
+              onChange={(e) => setInviteName(e.target.value)}
+              placeholder="Ex: João Silva"
+              required
+            />
+            <Input
+              label="Email *"
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="email@exemplo.com"
+              required
+            />
+            <Select
+              label="Função"
+              options={[
+                { value: 'technician', label: 'Técnico' },
+                { value: 'admin', label: 'Admin' },
+              ]}
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as 'admin' | 'technician')}
+            />
+            <p className="text-xs text-gray-400 -mt-1">
+              O membro receberá um email com o link de acesso. Não é necessário que ele tenha conta prévia.
+            </p>
+            {error && <p className="text-sm text-red-500 bg-red-50 p-3 rounded-lg">{error}</p>}
+            <div className="flex gap-3 pt-2">
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Enviando convite...' : 'Enviar convite'}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   )
