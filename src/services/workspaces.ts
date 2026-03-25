@@ -39,46 +39,19 @@ export async function getUserWorkspace(supabase: SupabaseClient): Promise<{
   }
 }
 
-// Cria um workspace e define o usuário como admin
+// Cria um workspace via RPC (função no banco com security definer)
+// Evita problema de RLS: o INSERT retornaria vazio pois o usuário ainda não é membro
 export async function createWorkspace(
   supabase: SupabaseClient,
   name: string,
   slug: string
 ): Promise<Workspace> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  // Cria o workspace
-  const { data: workspace, error: wsError } = await supabase
-    .from('workspaces')
-    .insert({ name, slug })
-    .select()
-    .single()
-  if (wsError) throw wsError
-
-  // Adiciona o criador como admin
-  const { error: memberError } = await supabase
-    .from('workspace_members')
-    .insert({ workspace_id: workspace.id, user_id: user.id, role: 'admin' })
-  if (memberError) throw memberError
-
-  // Busca o plano gratuito para associar
-  const { data: freePlan } = await supabase
-    .from('plans')
-    .select('id')
-    .eq('name', 'Gratuito')
-    .single()
-
-  // Cria assinatura em trial (14 dias)
-  if (freePlan) {
-    await supabase.from('subscriptions').insert({
-      workspace_id: workspace.id,
-      plan_id: freePlan.id,
-      status: 'trialing',
-    })
-  }
-
-  return workspace
+  const { data, error } = await supabase.rpc('create_workspace', {
+    p_name: name,
+    p_slug: slug,
+  })
+  if (error) throw error
+  return data as Workspace
 }
 
 export async function updateWorkspace(
