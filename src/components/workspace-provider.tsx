@@ -66,6 +66,14 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         router.push('/dashboard')
         return
       }
+      // Workspace bloqueado pelo super admin → redireciona para página de aviso
+      if (data.workspace.is_blocked) {
+        const params = new URLSearchParams({ empresa: data.workspace.name })
+        if (data.workspace.blocked_reason) params.set('motivo', data.workspace.blocked_reason)
+        router.push(`/bloqueado?${params.toString()}`)
+        return
+      }
+
       setState({
         workspace: data.workspace,
         role: data.role,

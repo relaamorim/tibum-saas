@@ -73,6 +73,10 @@ export interface Workspace {
   id: string
   name: string
   slug: string
+  // Campos de bloqueio (v3 — gerenciados pelo super admin do TiBum)
+  is_blocked: boolean
+  blocked_at: string | null
+  blocked_reason: string | null
   created_at: string
   updated_at: string
 }
@@ -143,3 +147,21 @@ export type ScheduleForm = Omit<Schedule, 'id' | 'user_id' | 'workspace_id' | 'c
 export type ServiceForm = Omit<Service, 'id' | 'user_id' | 'workspace_id' | 'created_at' | 'customer' | 'schedule'>
 export type PaymentForm = Omit<Payment, 'id' | 'user_id' | 'workspace_id' | 'created_at' | 'service'>
 export type WorkspaceForm = Pick<Workspace, 'name' | 'slug'>
+
+// ── Tipo para o painel do super admin (v3) ──
+export interface WorkspaceAdminView {
+  id: string
+  name: string
+  slug: string
+  is_blocked: boolean
+  blocked_at: string | null
+  blocked_reason: string | null
+  created_at: string
+  // Dados de assinatura
+  subscription_status: string | null
+  plan_name: string | null
+  plan_price: number | null
+  // Contadores
+  member_count: number
+  customer_count: number
+}
