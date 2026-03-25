@@ -99,7 +99,7 @@ export default function MembrosPage() {
 
   async function handleRemove(member: WorkspaceMember) {
     if (!workspace) return
-    if (!confirm(`Remover ${member.user_id} do workspace?`)) return
+    if (!confirm(`Remover ${member.name ?? member.user_id} do workspace?`)) return
     try {
       await removeMember(supabase, member.id)
       await logAudit(supabase, {
@@ -158,9 +158,13 @@ export default function MembrosPage() {
                 {members.map((m) => (
                   <tr key={m.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
-                      <span className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                        {m.user_id.slice(0, 16)}…
-                      </span>
+                      {m.name ? (
+                        <span className="text-sm font-medium text-gray-800">{m.name}</span>
+                      ) : (
+                        <span className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                          {m.user_id.slice(0, 16)}…
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <Badge color={m.role === 'admin' ? 'blue' : 'gray'}>

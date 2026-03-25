@@ -26,10 +26,10 @@ export async function GET() {
   // 2. Usa o cliente admin (bypassa RLS) para buscar tudo
   const admin = createAdminClient()
 
-  // Busca todos os workspaces com assinatura + plano (inclui IDs para edição)
+  // Busca todos os workspaces com assinatura + plano + dados de contato do admin (v4)
   const { data: workspaces, error: wsError } = await admin
     .from('workspaces')
-    .select('id, name, slug, is_blocked, blocked_at, blocked_reason, created_at, subscriptions(id, status, plan_id, plan:plans(id, name, price_monthly))')
+    .select('id, name, slug, is_blocked, blocked_at, blocked_reason, admin_email, admin_whatsapp, created_at, subscriptions(id, status, plan_id, plan:plans(id, name, price_monthly))')
     .order('created_at', { ascending: false })
 
   // Busca todos os planos disponíveis para o seletor de plano
@@ -43,10 +43,10 @@ export async function GET() {
     return NextResponse.json({ error: wsError.message }, { status: 500 })
   }
 
-  // Busca todos os membros para contar por workspace
+  // Busca todos os membros (para contar e para pegar o nome do admin)
   const { data: members } = await admin
     .from('workspace_members')
-    .select('workspace_id')
+    .select('workspace_id, role, name')
 
   // Busca todos os clientes para contar por workspace
   const { data: customers } = await admin
@@ -54,10 +54,15 @@ export async function GET() {
     .select('workspace_id')
     .not('workspace_id', 'is', null)
 
-  // Monta mapas de contagem
+  // Monta mapas de contagem e nome do admin por workspace
   const memberCountMap: Record<string, number> = {}
+  const adminNameMap: Record<string, string | null> = {}
   for (const m of members ?? []) {
     memberCountMap[m.workspace_id] = (memberCountMap[m.workspace_id] || 0) + 1
+    // O primeiro membro com role 'admin' e nome preenchido é o dono da empresa
+    if (m.role === 'admin' && m.name && !adminNameMap[m.workspace_id]) {
+      adminNameMap[m.workspace_id] = m.name
+    }
   }
 
   const customerCountMap: Record<string, number> = {}
@@ -79,6 +84,9 @@ export async function GET() {
       blocked_at: ws.blocked_at ?? null,
       blocked_reason: ws.blocked_reason ?? null,
       created_at: ws.created_at,
+      admin_name: adminNameMap[ws.id] ?? null,
+      admin_email: ws.admin_email ?? null,
+      admin_whatsapp: ws.admin_whatsapp ?? null,
       subscription_id: sub?.id ?? null,
       subscription_status: sub?.status ?? null,
       plan_id: sub?.plan_id ?? null,

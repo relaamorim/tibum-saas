@@ -77,6 +77,9 @@ export interface Workspace {
   is_blocked: boolean
   blocked_at: string | null
   blocked_reason: string | null
+  // Dados de contato do administrador (v4)
+  admin_email: string | null
+  admin_whatsapp: string | null
   created_at: string
   updated_at: string
 }
@@ -87,6 +90,8 @@ export interface WorkspaceMember {
   user_id: string
   role: WorkspaceRole
   invited_by: string | null
+  // Nome de exibição do membro (preenchido no onboarding para o admin)
+  name: string | null
   created_at: string
   workspace?: Workspace
   // Email vem de auth.users (via join manual)
@@ -148,7 +153,7 @@ export type ServiceForm = Omit<Service, 'id' | 'user_id' | 'workspace_id' | 'cre
 export type PaymentForm = Omit<Payment, 'id' | 'user_id' | 'workspace_id' | 'created_at' | 'service'>
 export type WorkspaceForm = Pick<Workspace, 'name' | 'slug'>
 
-// ── Tipo para o painel do super admin (v3) ──
+// ── Tipo para o painel do super admin (v3/v4) ──
 export interface WorkspaceAdminView {
   id: string
   name: string
@@ -157,6 +162,10 @@ export interface WorkspaceAdminView {
   blocked_at: string | null
   blocked_reason: string | null
   created_at: string
+  // Dados de contato do administrador (v4)
+  admin_name: string | null
+  admin_email: string | null
+  admin_whatsapp: string | null
   // Dados de assinatura
   subscription_id: string | null
   subscription_status: string | null
