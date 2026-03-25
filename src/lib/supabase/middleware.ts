@@ -45,43 +45,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Usuário autenticado fora do onboarding → verifica se tem workspace
-  if (user && !isPublic && pathname !== '/onboarding') {
-    const { data: member } = await supabase
-      .from('workspace_members')
-      .select('id, role')
-      .eq('user_id', user.id)
-      .single()
-
-    // Sem workspace → manda para onboarding
-    if (!member) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/onboarding'
-      return NextResponse.redirect(url)
-    }
-
-    // Rotas de configuração → apenas admins
-    if (pathname.startsWith('/configuracoes') && member.role !== 'admin') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
-    }
-  }
-
-  // Onboarding com workspace existente → manda para dashboard
-  if (user && pathname === '/onboarding') {
-    const { data: member } = await supabase
-      .from('workspace_members')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
-
-    if (member) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
-    }
-  }
+  // Verificação de workspace é feita no cliente (WorkspaceProvider)
+  // para evitar problemas de RLS no Edge Runtime
 
   return supabaseResponse
 }
