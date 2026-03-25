@@ -28,7 +28,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // Rotas públicas que não precisam de autenticação
-  const publicPaths = ['/login', '/auth']
+  const publicPaths = ['/login', '/auth', '/bloqueado']
   const isPublic = publicPaths.some((p) => pathname.startsWith(p))
 
   // Não autenticado → redireciona para login
@@ -43,6 +43,17 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
+  }
+
+  // Rota /super-admin: apenas o super admin pode acessar
+  // (o layout também verifica server-side — dupla proteção)
+  if (pathname.startsWith('/super-admin')) {
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL
+    if (!user || user.email !== superAdminEmail) {
+      const url = request.nextUrl.clone()
+      url.pathname = user ? '/dashboard' : '/login'
+      return NextResponse.redirect(url)
+    }
   }
 
   // Verificação de workspace é feita no cliente (WorkspaceProvider)

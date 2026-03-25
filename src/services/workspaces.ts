@@ -15,7 +15,8 @@ export async function getUserWorkspace(supabase: SupabaseClient): Promise<{
 
   const { data: members } = await supabase
     .from('workspace_members')
-    .select('role, workspace:workspaces(id, name, slug, created_at, updated_at)')
+    // Inclui is_blocked para verificar bloqueio no WorkspaceProvider
+    .select('role, workspace:workspaces(id, name, slug, is_blocked, blocked_at, blocked_reason, created_at, updated_at)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(1)
