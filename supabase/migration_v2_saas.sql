@@ -1,12 +1,13 @@
 -- ============================================
 -- TiBum SaaS - Migration v2: Arquitetura Multi-Tenant
 -- Execute no Supabase SQL Editor APÓS o schema.sql
+-- Idempotente: pode ser executado várias vezes sem erro
 -- ============================================
 
 -- ──────────────────────────────────────────
 -- 1. WORKSPACES (empresas / tenants)
 -- ──────────────────────────────────────────
-create table workspaces (
+create table if not exists workspaces (
   id uuid default gen_random_uuid() primary key,
   name text not null,
   slug text unique not null,
@@ -17,7 +18,7 @@ create table workspaces (
 -- ──────────────────────────────────────────
 -- 2. MEMBROS DO WORKSPACE (RBAC)
 -- ──────────────────────────────────────────
-create table workspace_members (
+create table if not exists workspace_members (
   id uuid default gen_random_uuid() primary key,
   workspace_id uuid references workspaces(id) on delete cascade not null,
   user_id uuid references auth.users(id) on delete cascade not null,
@@ -30,7 +31,7 @@ create table workspace_members (
 -- ──────────────────────────────────────────
 -- 3. PLANOS DE ASSINATURA
 -- ──────────────────────────────────────────
-create table plans (
+create table if not exists plans (
   id uuid default gen_random_uuid() primary key,
   name text not null,
   price_monthly decimal(10,2) not null default 0,
@@ -41,16 +42,19 @@ create table plans (
   created_at timestamptz default now()
 );
 
--- Planos padrão do TiBum
-insert into plans (name, price_monthly, max_customers, max_members, features) values
-  ('Gratuito', 0.00, 10, 1, '["Dashboard", "Clientes", "Agenda básica"]'),
-  ('Starter', 49.90, 50, 3, '["Tudo do Gratuito", "Serviços", "Financeiro", "Relatórios"]'),
-  ('Pro', 99.90, null, 10, '["Tudo do Starter", "Membros ilimitados", "API WhatsApp", "Suporte prioritário"]');
+-- Planos padrão do TiBum (insere apenas se não existirem)
+insert into plans (name, price_monthly, max_customers, max_members, features)
+select * from (values
+  ('Gratuito', 0.00::decimal, 10, 1, '["Dashboard", "Clientes", "Agenda básica"]'::jsonb),
+  ('Starter', 49.90::decimal, 50, 3, '["Tudo do Gratuito", "Serviços", "Financeiro", "Relatórios"]'::jsonb),
+  ('Pro', 99.90::decimal, null::int, 10, '["Tudo do Starter", "Membros ilimitados", "API WhatsApp", "Suporte prioritário"]'::jsonb)
+) as v(name, price_monthly, max_customers, max_members, features)
+where not exists (select 1 from plans where plans.name = v.name);
 
 -- ──────────────────────────────────────────
 -- 4. ASSINATURAS DOS WORKSPACES
 -- ──────────────────────────────────────────
-create table subscriptions (
+create table if not exists subscriptions (
   id uuid default gen_random_uuid() primary key,
   workspace_id uuid references workspaces(id) on delete cascade not null unique,
   plan_id uuid references plans(id) not null,
@@ -65,7 +69,7 @@ create table subscriptions (
 -- ──────────────────────────────────────────
 -- 5. AUDIT LOGS (rastreabilidade)
 -- ──────────────────────────────────────────
-create table audit_logs (
+create table if not exists audit_logs (
   id uuid default gen_random_uuid() primary key,
   workspace_id uuid references workspaces(id) on delete cascade not null,
   user_id uuid references auth.users(id),
@@ -90,15 +94,15 @@ alter table payments add column if not exists workspace_id uuid references works
 -- ──────────────────────────────────────────
 -- 7. ÍNDICES DE PERFORMANCE
 -- ──────────────────────────────────────────
-create index idx_workspace_members_workspace_id on workspace_members(workspace_id);
-create index idx_workspace_members_user_id on workspace_members(user_id);
-create index idx_subscriptions_workspace_id on subscriptions(workspace_id);
-create index idx_audit_logs_workspace_id on audit_logs(workspace_id);
-create index idx_audit_logs_created_at on audit_logs(created_at desc);
-create index idx_customers_workspace_id on customers(workspace_id);
-create index idx_schedules_workspace_id on schedules(workspace_id);
-create index idx_services_workspace_id on services(workspace_id);
-create index idx_payments_workspace_id on payments(workspace_id);
+create index if not exists idx_workspace_members_workspace_id on workspace_members(workspace_id);
+create index if not exists idx_workspace_members_user_id on workspace_members(user_id);
+create index if not exists idx_subscriptions_workspace_id on subscriptions(workspace_id);
+create index if not exists idx_audit_logs_workspace_id on audit_logs(workspace_id);
+create index if not exists idx_audit_logs_created_at on audit_logs(created_at desc);
+create index if not exists idx_customers_workspace_id on customers(workspace_id);
+create index if not exists idx_schedules_workspace_id on schedules(workspace_id);
+create index if not exists idx_services_workspace_id on services(workspace_id);
+create index if not exists idx_payments_workspace_id on payments(workspace_id);
 
 -- ──────────────────────────────────────────
 -- 8. ROW LEVEL SECURITY
@@ -109,7 +113,8 @@ alter table plans enable row level security;
 alter table subscriptions enable row level security;
 alter table audit_logs enable row level security;
 
--- Workspaces: membros veem/atualizam; apenas auth vê
+-- Workspaces: membros veem/atualizam
+drop policy if exists "Membros acessam seu workspace" on workspaces;
 create policy "Membros acessam seu workspace"
   on workspaces for select
   using (
@@ -119,6 +124,7 @@ create policy "Membros acessam seu workspace"
     )
   );
 
+drop policy if exists "Admins atualizam workspace" on workspaces;
 create policy "Admins atualizam workspace"
   on workspaces for update
   using (
@@ -128,11 +134,13 @@ create policy "Admins atualizam workspace"
     )
   );
 
+drop policy if exists "Usuários criam workspaces" on workspaces;
 create policy "Usuários criam workspaces"
   on workspaces for insert
   with check (true);
 
--- Workspace members: membros veem; admins gerenciam
+-- Workspace members
+drop policy if exists "Membros veem colegas" on workspace_members;
 create policy "Membros veem colegas"
   on workspace_members for select
   using (
@@ -142,6 +150,7 @@ create policy "Membros veem colegas"
     )
   );
 
+drop policy if exists "Admins inserem membros" on workspace_members;
 create policy "Admins inserem membros"
   on workspace_members for insert
   with check (
@@ -152,6 +161,7 @@ create policy "Admins inserem membros"
     or user_id = auth.uid() -- permite o próprio usuário entrar
   );
 
+drop policy if exists "Admins removem membros" on workspace_members;
 create policy "Admins removem membros"
   on workspace_members for delete
   using (
@@ -161,6 +171,7 @@ create policy "Admins removem membros"
     )
   );
 
+drop policy if exists "Admins atualizam roles" on workspace_members;
 create policy "Admins atualizam roles"
   on workspace_members for update
   using (
@@ -170,12 +181,14 @@ create policy "Admins atualizam roles"
     )
   );
 
--- Planos: leitura pública (para exibir pricing)
+-- Planos: leitura pública
+drop policy if exists "Planos são públicos para leitura" on plans;
 create policy "Planos são públicos para leitura"
   on plans for select
   using (is_active = true);
 
--- Subscriptions: apenas membros do workspace
+-- Subscriptions
+drop policy if exists "Membros veem assinatura do workspace" on subscriptions;
 create policy "Membros veem assinatura do workspace"
   on subscriptions for select
   using (
@@ -185,6 +198,7 @@ create policy "Membros veem assinatura do workspace"
     )
   );
 
+drop policy if exists "Sistema gerencia assinaturas" on subscriptions;
 create policy "Sistema gerencia assinaturas"
   on subscriptions for all
   using (
@@ -194,7 +208,8 @@ create policy "Sistema gerencia assinaturas"
     )
   );
 
--- Audit logs: leitura por admins; inserção por qualquer membro
+-- Audit logs
+drop policy if exists "Admins leem audit logs" on audit_logs;
 create policy "Admins leem audit logs"
   on audit_logs for select
   using (
@@ -204,6 +219,7 @@ create policy "Admins leem audit logs"
     )
   );
 
+drop policy if exists "Membros inserem audit logs" on audit_logs;
 create policy "Membros inserem audit logs"
   on audit_logs for insert
   with check (
@@ -220,6 +236,7 @@ create policy "Membros inserem audit logs"
 
 -- Clientes
 drop policy if exists "Usuários gerenciam seus clientes" on customers;
+drop policy if exists "Acesso a clientes por workspace ou user_id" on customers;
 create policy "Acesso a clientes por workspace ou user_id"
   on customers for all
   using (
@@ -232,6 +249,7 @@ create policy "Acesso a clientes por workspace ou user_id"
 
 -- Agendamentos
 drop policy if exists "Usuários gerenciam seus agendamentos" on schedules;
+drop policy if exists "Acesso a agendamentos por workspace ou user_id" on schedules;
 create policy "Acesso a agendamentos por workspace ou user_id"
   on schedules for all
   using (
@@ -244,6 +262,7 @@ create policy "Acesso a agendamentos por workspace ou user_id"
 
 -- Serviços
 drop policy if exists "Usuários gerenciam seus serviços" on services;
+drop policy if exists "Acesso a serviços por workspace ou user_id" on services;
 create policy "Acesso a serviços por workspace ou user_id"
   on services for all
   using (
@@ -256,6 +275,7 @@ create policy "Acesso a serviços por workspace ou user_id"
 
 -- Pagamentos
 drop policy if exists "Usuários gerenciam seus pagamentos" on payments;
+drop policy if exists "Acesso a pagamentos por workspace ou user_id" on payments;
 create policy "Acesso a pagamentos por workspace ou user_id"
   on payments for all
   using (
