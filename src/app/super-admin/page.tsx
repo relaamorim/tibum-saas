@@ -3,6 +3,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { WorkspaceAdminView } from '@/types/database'
 
+// Tipo simples para os planos disponíveis
+interface Plan {
+  id: string
+  name: string
+  price_monthly: number
+}
+
 // ============================================
 // Painel do Criador TiBum
 // Lista todos os clientes (workspaces) com plano, status e ações
@@ -135,9 +142,82 @@ function ModalBloquear({
   )
 }
 
+// Modal de troca de plano
+function ModalPlano({
+  workspace,
+  plans,
+  onConfirm,
+  onCancel,
+}: {
+  workspace: WorkspaceAdminView
+  plans: Plan[]
+  onConfirm: (planId: string) => void
+  onCancel: () => void
+}) {
+  const [selected, setSelected] = useState(workspace.plan_id ?? '')
+
+  function formatPrice(price: number) {
+    if (price === 0) return 'Gratuito'
+    return `R$ ${price.toFixed(2).replace('.', ',')}/mês`
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-violet-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-violet-900/50 rounded-xl flex items-center justify-center">
+            <span className="text-xl">⭐</span>
+          </div>
+          <h2 className="text-lg font-bold text-violet-400">Alterar Plano</h2>
+        </div>
+
+        <p className="text-gray-400 text-sm mb-4">
+          Empresa: <strong className="text-white">{workspace.name}</strong>
+        </p>
+
+        {/* Lista de planos para selecionar */}
+        <div className="space-y-2 mb-6">
+          {plans.map((plan) => (
+            <button
+              key={plan.id}
+              onClick={() => setSelected(plan.id)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-colors text-left
+                ${selected === plan.id
+                  ? 'bg-violet-900/50 border-violet-600 text-white'
+                  : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                }`}
+            >
+              <span className="font-medium">{plan.name}</span>
+              <span className="text-sm">{formatPrice(plan.price_monthly)}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg font-medium transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => selected && onConfirm(selected)}
+            disabled={!selected || selected === workspace.plan_id}
+            className="flex-1 px-4 py-2 bg-violet-700 hover:bg-violet-600 text-white rounded-lg font-medium
+              transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Componente principal da página ──────────────────────────
 export default function SuperAdminPage() {
   const [workspaces, setWorkspaces] = useState<WorkspaceAdminView[]>([])
+  const [plans, setPlans] = useState<Plan[]>([])
   const [stats, setStats] = useState<{ total: number; blocked: number; by_plan: Record<string, number> } | null>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -146,6 +226,7 @@ export default function SuperAdminPage() {
   // Modais
   const [toDelete, setToDelete] = useState<WorkspaceAdminView | null>(null)
   const [toBlock, setToBlock] = useState<WorkspaceAdminView | null>(null)
+  const [toChangePlan, setToChangePlan] = useState<WorkspaceAdminView | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
@@ -158,6 +239,7 @@ export default function SuperAdminPage() {
       if (res.ok) {
         setWorkspaces(json.workspaces)
         setStats(json.stats)
+        setPlans(json.plans ?? [])
       }
     } finally {
       setLoading(false)
@@ -211,6 +293,28 @@ export default function SuperAdminPage() {
       } else {
         const j = await res.json()
         showToast(j.error ?? 'Erro ao desbloquear', 'error')
+      }
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Alterar plano manualmente
+  async function handleSetPlan(workspace: WorkspaceAdminView, planId: string) {
+    setToChangePlan(null)
+    setActionLoading(true)
+    try {
+      const res = await fetch(`/api/super-admin/workspaces/${workspace.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_plan', plan_id: planId }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        showToast(`Plano de "${workspace.name}" alterado para ${json.plan_name}.`, 'success')
+        await fetchWorkspaces()
+      } else {
+        showToast(json.error ?? 'Erro ao alterar plano', 'error')
       }
     } finally {
       setActionLoading(false)
@@ -279,6 +383,14 @@ export default function SuperAdminPage() {
           workspace={toBlock}
           onConfirm={(reason) => handleBlock(toBlock, reason)}
           onCancel={() => setToBlock(null)}
+        />
+      )}
+      {toChangePlan && (
+        <ModalPlano
+          workspace={toChangePlan}
+          plans={plans}
+          onConfirm={(planId) => handleSetPlan(toChangePlan, planId)}
+          onCancel={() => setToChangePlan(null)}
         />
       )}
 
@@ -415,6 +527,18 @@ export default function SuperAdminPage() {
                     {/* Ações */}
                     <td className="px-5 py-4">
                       <div className="flex items-center justify-end gap-2">
+                        {/* Alterar plano */}
+                        <button
+                          onClick={() => setToChangePlan(ws)}
+                          disabled={actionLoading}
+                          title="Alterar plano"
+                          className="px-3 py-1.5 text-xs bg-violet-900/30 hover:bg-violet-900/60
+                            text-violet-400 border border-violet-800 rounded-lg transition-colors
+                            disabled:opacity-50"
+                        >
+                          ⭐ Plano
+                        </button>
+
                         {/* Bloquear / Desbloquear */}
                         {ws.is_blocked ? (
                           <button

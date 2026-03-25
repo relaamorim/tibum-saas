@@ -26,11 +26,18 @@ export async function GET() {
   // 2. Usa o cliente admin (bypassa RLS) para buscar tudo
   const admin = createAdminClient()
 
-  // Busca todos os workspaces com assinatura + plano
+  // Busca todos os workspaces com assinatura + plano (inclui IDs para edição)
   const { data: workspaces, error: wsError } = await admin
     .from('workspaces')
-    .select('id, name, slug, is_blocked, blocked_at, blocked_reason, created_at, subscriptions(status, plan:plans(name, price_monthly))')
+    .select('id, name, slug, is_blocked, blocked_at, blocked_reason, created_at, subscriptions(id, status, plan_id, plan:plans(id, name, price_monthly))')
     .order('created_at', { ascending: false })
+
+  // Busca todos os planos disponíveis para o seletor de plano
+  const { data: plans } = await admin
+    .from('plans')
+    .select('id, name, price_monthly')
+    .eq('is_active', true)
+    .order('price_monthly')
 
   if (wsError) {
     return NextResponse.json({ error: wsError.message }, { status: 500 })
@@ -72,7 +79,9 @@ export async function GET() {
       blocked_at: ws.blocked_at ?? null,
       blocked_reason: ws.blocked_reason ?? null,
       created_at: ws.created_at,
+      subscription_id: sub?.id ?? null,
       subscription_status: sub?.status ?? null,
+      plan_id: sub?.plan_id ?? null,
       plan_name: plan?.name ?? null,
       plan_price: plan?.price_monthly ?? null,
       member_count: memberCountMap[ws.id] ?? 0,
@@ -91,5 +100,5 @@ export async function GET() {
     }, {}),
   }
 
-  return NextResponse.json({ workspaces: result, stats })
+  return NextResponse.json({ workspaces: result, stats, plans: plans ?? [] })
 }
