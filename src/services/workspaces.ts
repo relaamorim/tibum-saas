@@ -13,12 +13,14 @@ export async function getUserWorkspace(supabase: SupabaseClient): Promise<{
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: member } = await supabase
+  const { data: members } = await supabase
     .from('workspace_members')
     .select('role, workspace:workspaces(id, name, slug, created_at, updated_at)')
     .eq('user_id', user.id)
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
 
+  const member = members?.[0]
   if (!member || !member.workspace) return null
 
   // Supabase retorna o join como objeto (single join via .single())
