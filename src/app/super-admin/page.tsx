@@ -367,8 +367,14 @@ export default function SuperAdminPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
-  const fetchWorkspaces = useCallback(async () => {
-    setLoading(true)
+  // Controle de atualização manual e horário da última busca
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  // isRefresh=true usa o spinner pequeno em vez de travar a tela inteira
+  const fetchWorkspaces = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
     try {
       const res = await fetch('/api/super-admin/workspaces')
       const json = await res.json()
@@ -376,13 +382,24 @@ export default function SuperAdminPage() {
         setWorkspaces(json.workspaces)
         setStats(json.stats)
         setPlans(json.plans ?? [])
+        setLastUpdated(new Date()) // registra horário da última atualização
       }
     } finally {
-      setLoading(false)
+      if (isRefresh) setRefreshing(false)
+      else setLoading(false)
     }
   }, [])
 
+  // Carga inicial
   useEffect(() => { fetchWorkspaces() }, [fetchWorkspaces])
+
+  // Auto-atualização a cada 1 hora (3.600.000 ms)
+  useEffect(() => {
+    const intervalo = setInterval(() => {
+      fetchWorkspaces(true)
+    }, 60 * 60 * 1000)
+    return () => clearInterval(intervalo)
+  }, [fetchWorkspaces])
 
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type })
@@ -471,10 +488,43 @@ export default function SuperAdminPage() {
         />
       )}
 
-      {/* Título */}
+      {/* Título + botão de atualizar */}
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white mb-1">Clientes Cadastrados</h2>
-        <p className="text-gray-400 text-sm">Clique em uma empresa para ver detalhes e gerenciar</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-1">Clientes Cadastrados</h2>
+            <p className="text-gray-400 text-sm">Clique em uma empresa para ver detalhes e gerenciar</p>
+          </div>
+
+          {/* Botão de atualizar manualmente */}
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <button
+              onClick={() => fetchWorkspaces(true)}
+              disabled={refreshing || loading}
+              title="Atualizar cadastros"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700
+                border border-gray-700 hover:border-violet-500 text-gray-300 hover:text-white
+                rounded-xl transition-colors disabled:opacity-50"
+            >
+              {/* Ícone de seta circular — gira enquanto atualiza */}
+              <svg
+                className={`w-4 h-4 transition-transform ${refreshing ? 'animate-spin' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="text-sm font-medium">{refreshing ? 'Atualizando…' : 'Atualizar'}</span>
+            </button>
+
+            {/* Horário da última atualização */}
+            {lastUpdated && (
+              <p className="text-xs text-gray-600">
+                Atualizado às {lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Cards de estatísticas */}
