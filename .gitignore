@@ -1,0 +1,64 @@
+# ── Dependências ─────────────────────────────
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# ── Next.js ──────────────────────────────────
+/.next/
+/out/
+/build
+
+# ── Variáveis de ambiente (NUNCA commitar) ────
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test.local
+.env.production
+.env.production.local
+
+# ── Logs ─────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# ── Sistema operacional ───────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── IDE / Editores ────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.claude/
+
+# ── TypeScript ────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Testing ───────────────────────────────────
+/coverage
+/.nyc_output
+
+# ── Deploy ────────────────────────────────────
+.vercel
+.netlify
+
+# ── Certificados e chaves ─────────────────────
+*.pem
+*.key
+*.cert
