@@ -21,8 +21,12 @@ export interface Customer {
   name: string
   phone: string | null
   address: string | null
-  pool_type: PoolType | null
-  pool_size: string | null
+  pool_type: PoolType | null   // mantido para compatibilidade com registros antigos
+  pool_size: string | null     // mantido para compatibilidade com registros antigos
+  // Campos dinâmicos (v5) — pares chave/valor definidos pelo admin
+  custom_fields: Record<string, string> | null
+  // Fotos (v5) — array de URLs públicas do Supabase Storage
+  photos: string[] | null
   created_at: string
   updated_at: string
 }
