@@ -141,6 +141,35 @@ export interface AuditLog {
   user_email?: string
 }
 
+// ── Estoque (v6) ─────────────────────────────────────
+export interface Product {
+  id: string
+  workspace_id: string | null
+  user_id: string
+  name: string
+  description: string | null
+  unit: string                // un, kg, L, m, m², caixa, pct
+  purchase_price: number      // preço de compra (custo)
+  sale_price: number          // preço de venda
+  stock_quantity: number      // quantidade atual em estoque
+  created_at: string
+  updated_at: string
+}
+
+export interface ProductSale {
+  id: string
+  workspace_id: string | null
+  user_id: string
+  product_id: string
+  quantity: number
+  unit_price: number          // preço de venda no momento
+  purchase_price: number      // preço de compra no momento (para lucro histórico)
+  notes: string | null
+  sold_at: string
+  created_at: string
+  product?: Pick<Product, 'id' | 'name' | 'unit'>
+}
+
 // ── Contexto de workspace (para uso nos componentes) ──
 export interface WorkspaceContext {
   workspace: Workspace

@@ -13,6 +13,7 @@ const mainMenu = [
   { href: '/agenda', label: 'Agenda', icon: '📅' },
   { href: '/servicos', label: 'Serviços', icon: '🔧' },
   { href: '/financeiro', label: 'Financeiro', icon: '💰' },
+  { href: '/estoque', label: 'Estoque', icon: '📦' },
 ]
 
 // Itens de configuração (apenas para admins)
